@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime
 
+from app import config
 from app.models import DayLog, FoodEntry, LogBook, Profile, Source, day_key
 from app.storage import atomic_write_json, load_json
 

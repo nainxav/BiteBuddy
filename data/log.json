@@ -1,1 +1,42 @@
-{}
+{
+  "2026-04-13": {
+    "entries": [
+      {
+        "description": "today i eat pop mie pedes dower, a banana, and two cups of coffee",
+        "kcal": 105,
+        "source": "db",
+        "iso": "2026-04-13T21:47:49"
+      },
+      {
+        "description": "pop mie pedes dower",
+        "kcal": 160,
+        "source": "manual",
+        "iso": "2026-04-13T21:49:05"
+      },
+      {
+        "description": "pop mie pedes dower",
+        "kcal": 360,
+        "source": "manual",
+        "iso": "2026-04-13T21:49:23"
+      },
+      {
+        "description": "banana",
+        "kcal": 105,
+        "source": "manual",
+        "iso": "2026-04-13T21:49:55"
+      },
+      {
+        "description": "coffe",
+        "kcal": 110,
+        "source": "manual",
+        "iso": "2026-04-13T21:50:32"
+      },
+      {
+        "description": "coffee",
+        "kcal": 2,
+        "source": "db",
+        "iso": "2026-04-13T21:50:56"
+      }
+    ]
+  }
+}

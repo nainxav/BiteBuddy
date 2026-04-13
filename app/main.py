@@ -30,10 +30,7 @@ class ProfileIn(BaseModel):
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(
-        "chat.html",
-        {"request": request},
-    )
+    return templates.TemplateResponse(request, "chat.html")
 
 
 @app.get("/api/profile")
