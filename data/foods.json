@@ -1,0 +1,10 @@
+{
+  "fried rice": { "kcal": 450, "note": "typical portion" },
+  "burger": { "kcal": 550 },
+  "pizza slice": { "kcal": 285 },
+  "salad": { "kcal": 150 },
+  "oatmeal": { "kcal": 150 },
+  "banana": { "kcal": 105 },
+  "egg": { "kcal": 78 },
+  "coffee black": { "kcal": 2 }
+}
