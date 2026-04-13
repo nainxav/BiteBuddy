@@ -10,24 +10,41 @@ Source = Literal["db", "manual"]
 
 @dataclass
 class Profile:
-    current_weight_kg: float
+    """Stored preferences. Current weight comes from the latest dated entry in WeightBook."""
+
     target_weight_kg: float
     daily_calorie_target: int
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> Profile:
         return cls(
-            current_weight_kg=float(d["current_weight_kg"]),
             target_weight_kg=float(d["target_weight_kg"]),
             daily_calorie_target=int(d["daily_calorie_target"]),
         )
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "current_weight_kg": self.current_weight_kg,
             "target_weight_kg": self.target_weight_kg,
             "daily_calorie_target": self.daily_calorie_target,
         }
+
+
+@dataclass
+class WeightBook:
+    """ISO date (YYYY-MM-DD) -> weight in kg."""
+
+    by_day: dict[str, float] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return dict(sorted(self.by_day.items()))
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> WeightBook:
+        out: dict[str, float] = {}
+        for k, v in d.items():
+            if isinstance(v, (int, float)):
+                out[str(k)] = float(v)
+        return cls(by_day=out)
 
 
 @dataclass

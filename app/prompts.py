@@ -11,9 +11,14 @@ Rules:
 
 
 def context_block(ctx: NutritionContext) -> str:
+    cw = (
+        str(ctx.current_weight_kg)
+        if ctx.current_weight_kg is not None
+        else "not logged (use calendar to add a dated weight)"
+    )
     lines = [
         "CONTEXT (authoritative numbers from the app — do not contradict):",
-        f"- Current weight (kg): {ctx.current_weight_kg}",
+        f"- Current weight (kg): {cw}",
         f"- Target weight (kg): {ctx.target_weight_kg}",
         f"- Daily calorie target: {ctx.daily_calorie_target}",
         f"- Consumed today (kcal): {ctx.consumed_today}",

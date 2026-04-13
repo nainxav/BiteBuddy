@@ -222,6 +222,117 @@ body {
   filter: brightness(1.05);
 }
 
+.weight-summary {
+  font-size: 0.88rem;
+  color: var(--text);
+  margin: 0 0 0.75rem;
+  line-height: 1.4;
+}
+
+.calendar-hint {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 0 0 0.65rem;
+  line-height: 1.45;
+}
+
+.calendar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.cal-nav {
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--accent);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.cal-nav:hover {
+  border-color: var(--accent);
+}
+
+.cal-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+  flex: 1;
+}
+
+.cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 4px;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  text-align: center;
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.cal-cell.cal-pad {
+  min-height: 2.5rem;
+}
+
+.cal-cell.cal-day {
+  min-height: 2.85rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  padding: 0.2rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  font-size: 0.72rem;
+}
+
+.cal-cell.cal-day:hover {
+  border-color: var(--accent);
+}
+
+.cal-cell.cal-day.cal-today {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(110, 231, 183, 0.35);
+}
+
+.cal-dnum {
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.cal-kg {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.cal-kg.cal-empty {
+  opacity: 0.5;
+}
+
 @media (max-width: 768px) {
   .layout {
     grid-template-columns: 1fr;

@@ -21,10 +21,8 @@
         <dt>Target</dt><dd id="target">—</dd>
       </dl>
       <h2>Profile</h2>
+      <p class="weight-summary" id="weight-summary">—</p>
       <form id="profile-form" class="profile">
-        <label>Current weight (kg)
-          <input type="number" step="0.1" name="current_weight_kg" id="current_weight_kg" required />
-        </label>
         <label>Target weight (kg)
           <input type="number" step="0.1" name="target_weight_kg" id="target_weight_kg" required />
         </label>
@@ -34,6 +32,18 @@
         <button type="submit">Save profile</button>
       </form>
       <p class="hint" id="profile-status"></p>
+
+      <h2>Weight calendar</h2>
+      <p class="calendar-hint">Current weight in chat and summaries uses your <strong>latest</strong> logged day.</p>
+      <div class="calendar-head">
+        <button type="button" class="cal-nav" id="cal-prev" aria-label="Previous month">‹</button>
+        <span class="cal-title" id="cal-title"></span>
+        <button type="button" class="cal-nav" id="cal-next" aria-label="Next month">›</button>
+      </div>
+      <div class="cal-weekdays" aria-hidden="true">
+        <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
     </aside>
 
     <main class="chat">
@@ -59,6 +69,9 @@
       target: document.getElementById("target"),
     };
 
+    let calYear;
+    let calMonth;
+
     function appendBubble(role, text) {
       const div = document.createElement("div");
       div.className = "bubble " + role;
@@ -67,26 +80,144 @@
       messagesEl.scrollTop = messagesEl.scrollHeight;
     }
 
+    function updateWeightSummary(data) {
+      const el = document.getElementById("weight-summary");
+      if (!el) return;
+      if (data && data.current_weight_kg != null && data.current_weight_kg !== undefined) {
+        el.textContent = "Latest weight: " + data.current_weight_kg + " kg" +
+          (data.current_weight_date ? " · " + data.current_weight_date : "");
+      } else {
+        el.textContent = "No weight logged yet — tap a day below.";
+      }
+    }
+
     function updateStats(data) {
       if (!data || data.consumed_today === undefined) return;
       stats.consumed.textContent = data.consumed_today + " kcal";
       stats.remaining.textContent = data.remaining_today + " kcal";
       stats.target.textContent = data.daily_calorie_target + " kcal";
+      updateWeightSummary(data);
     }
 
     async function loadProfile() {
       const r = await fetch("/api/profile");
       const p = await r.json();
-      document.getElementById("current_weight_kg").value = p.current_weight_kg;
       document.getElementById("target_weight_kg").value = p.target_weight_kg;
       document.getElementById("daily_calorie_target").value = p.daily_calorie_target;
+      updateWeightSummary(p);
+    }
+
+    function pad2(n) {
+      return String(n).padStart(2, "0");
+    }
+
+    function isoDate(y, m1, d) {
+      return y + "-" + pad2(m1) + "-" + pad2(d);
+    }
+
+    async function fetchMonthWeights() {
+      const q = new URLSearchParams({ year: String(calYear), month: String(calMonth) });
+      const r = await fetch("/api/weights?" + q.toString());
+      if (!r.ok) return {};
+      const j = await r.json();
+      return j.weights || {};
+    }
+
+    async function putWeight(iso, kg) {
+      const r = await fetch("/api/weights", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: iso, weight_kg: kg }),
+      });
+      return r.ok;
+    }
+
+    async function deleteWeight(iso) {
+      const q = new URLSearchParams({ date: iso });
+      const r = await fetch("/api/weights?" + q.toString(), { method: "DELETE" });
+      return r.ok;
+    }
+
+    async function renderCalendar() {
+      const grid = document.getElementById("cal-grid");
+      const title = document.getElementById("cal-title");
+      const t = new Date(calYear, calMonth - 1, 1);
+      title.textContent = t.toLocaleString(undefined, { month: "long", year: "numeric" });
+
+      const weights = await fetchMonthWeights();
+      const daysInMonth = new Date(calYear, calMonth, 0).getDate();
+      const first = new Date(calYear, calMonth - 1, 1);
+      const startDow = (first.getDay() + 6) % 7;
+
+      grid.replaceChildren();
+      for (let i = 0; i < startDow; i++) {
+        const pad = document.createElement("div");
+        pad.className = "cal-cell cal-pad";
+        grid.appendChild(pad);
+      }
+      const todayIso = new Date().toISOString().slice(0, 10);
+
+      for (let d = 1; d <= daysInMonth; d++) {
+        const iso = isoDate(calYear, calMonth, d);
+        const cell = document.createElement("button");
+        cell.type = "button";
+        cell.className = "cal-cell cal-day";
+        if (iso === todayIso) cell.classList.add("cal-today");
+        const w = weights[iso];
+        cell.innerHTML = "<span class=\"cal-dnum\">" + d + "</span>" +
+          (w != null ? "<span class=\"cal-kg\">" + w + "</span>" : "<span class=\"cal-kg cal-empty\">—</span>");
+        cell.title = "Set weight for " + iso;
+        cell.addEventListener("click", async () => {
+          const prev = w != null ? String(w) : "";
+          const raw = window.prompt("Weight (kg) for " + iso + " (leave empty and OK to clear)", prev);
+          if (raw === null) return;
+          const trimmed = raw.trim();
+          if (trimmed === "") {
+            if (w != null) {
+              await deleteWeight(iso);
+              await renderCalendar();
+              await loadProfile();
+            }
+            return;
+          }
+          const num = parseFloat(trimmed.replace(",", "."));
+          if (!Number.isFinite(num) || num <= 0 || num > 500) {
+            window.alert("Enter a number between 0 and 500 kg.");
+            return;
+          }
+          const ok = await putWeight(iso, num);
+          if (ok) {
+            await renderCalendar();
+            await loadProfile();
+          } else {
+            window.alert("Could not save weight.");
+          }
+        });
+        grid.appendChild(cell);
+      }
+    }
+
+    function initCalendar() {
+      const now = new Date();
+      calYear = now.getFullYear();
+      calMonth = now.getMonth() + 1;
+      document.getElementById("cal-prev").addEventListener("click", async () => {
+        calMonth -= 1;
+        if (calMonth < 1) { calMonth = 12; calYear -= 1; }
+        await renderCalendar();
+      });
+      document.getElementById("cal-next").addEventListener("click", async () => {
+        calMonth += 1;
+        if (calMonth > 12) { calMonth = 1; calYear += 1; }
+        await renderCalendar();
+      });
+      renderCalendar();
     }
 
     document.getElementById("profile-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
       const body = {
-        current_weight_kg: parseFloat(fd.get("current_weight_kg")),
         target_weight_kg: parseFloat(fd.get("target_weight_kg")),
         daily_calorie_target: parseInt(fd.get("daily_calorie_target"), 10),
       };
@@ -99,6 +230,7 @@
       if (r.ok) {
         st.textContent = "Saved.";
         setTimeout(() => { st.textContent = ""; }, 2000);
+        await loadProfile();
       } else {
         st.textContent = "Could not save.";
       }
@@ -126,6 +258,7 @@
     });
 
     loadProfile();
+    initCalendar();
     fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

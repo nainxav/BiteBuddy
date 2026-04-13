@@ -10,6 +10,7 @@ DATA_DIR = Path(os.environ.get("BITEBUDDY_DATA_DIR", str(ROOT / "data")))
 PROFILE_PATH = DATA_DIR / "profile.json"
 LOG_PATH = DATA_DIR / "log.json"
 FOODS_PATH = DATA_DIR / "foods.json"
+WEIGHTS_PATH = DATA_DIR / "weights.json"
 
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 OPENROUTER_MODEL = os.environ.get(

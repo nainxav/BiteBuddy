@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -23,9 +23,13 @@ class ChatIn(BaseModel):
 
 
 class ProfileIn(BaseModel):
-    current_weight_kg: float = Field(..., gt=0, le=500)
     target_weight_kg: float = Field(..., gt=0, le=500)
     daily_calorie_target: int = Field(..., gt=0, le=20000)
+
+
+class WeightIn(BaseModel):
+    date: date
+    weight_kg: float = Field(..., gt=0, le=500)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -36,13 +40,22 @@ async def index(request: Request) -> HTMLResponse:
 @app.get("/api/profile")
 async def get_profile() -> JSONResponse:
     p = nutrition.load_profile()
-    return JSONResponse(p.to_dict())
+    wb = nutrition.load_weight_book()
+    latest = nutrition.latest_weight_entry(wb)
+    cw = nutrition.current_weight_kg_from_log(wb)
+    return JSONResponse(
+        {
+            "target_weight_kg": p.target_weight_kg,
+            "daily_calorie_target": p.daily_calorie_target,
+            "current_weight_kg": cw,
+            "current_weight_date": latest[0] if latest else None,
+        }
+    )
 
 
 @app.post("/api/profile")
 async def post_profile(body: ProfileIn) -> JSONResponse:
     p = nutrition.Profile(
-        current_weight_kg=body.current_weight_kg,
         target_weight_kg=body.target_weight_kg,
         daily_calorie_target=body.daily_calorie_target,
     )
@@ -50,15 +63,60 @@ async def post_profile(body: ProfileIn) -> JSONResponse:
     return JSONResponse({"ok": True, "profile": p.to_dict()})
 
 
+@app.get("/api/weights")
+async def get_weights(
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+) -> JSONResponse:
+    wb = nutrition.load_weight_book()
+    return JSONResponse(
+        {"weights": nutrition.weights_in_month(wb, year, month)}
+    )
+
+
+@app.put("/api/weights")
+async def put_weight(body: WeightIn) -> JSONResponse:
+    wb = nutrition.load_weight_book()
+    key = body.date.isoformat()
+    wb.by_day[key] = body.weight_kg
+    nutrition.save_weight_book(wb)
+    return JSONResponse(
+        {
+            "ok": True,
+            "date": key,
+            "weight_kg": body.weight_kg,
+        }
+    )
+
+
+@app.delete("/api/weights")
+async def delete_weight(
+    for_date: date = Query(..., alias="date"),
+) -> JSONResponse:
+    wb = nutrition.load_weight_book()
+    key = for_date.isoformat()
+    if key in wb.by_day:
+        del wb.by_day[key]
+        nutrition.save_weight_book(wb)
+    return JSONResponse({"ok": True})
+
+
 def _snapshot(
-    profile: nutrition.Profile, book: nutrition.LogBook, today: date
+    profile: nutrition.Profile,
+    book: nutrition.LogBook,
+    today: date,
+    wb: nutrition.WeightBook,
 ) -> dict:
-    ctx = nutrition.build_context_for_llm(profile, book, today, None, None)
+    ctx = nutrition.build_context_for_llm(
+        profile, book, today, None, None, wb
+    )
+    latest = nutrition.latest_weight_entry(wb)
     return {
         "consumed_today": ctx.consumed_today,
         "remaining_today": ctx.remaining_today,
         "daily_calorie_target": ctx.daily_calorie_target,
         "current_weight_kg": ctx.current_weight_kg,
+        "current_weight_date": latest[0] if latest else None,
         "target_weight_kg": ctx.target_weight_kg,
     }
 
@@ -67,6 +125,7 @@ def _snapshot(
 async def chat(body: ChatIn) -> JSONResponse:
     profile = nutrition.load_profile()
     book = nutrition.load_logbook()
+    wb = nutrition.load_weight_book()
     today = date.today()
     kind, payload = intent.parse_intent(body.message)
 
@@ -81,7 +140,7 @@ async def chat(body: ChatIn) -> JSONResponse:
             {
                 "kind": "summary",
                 "reply": text,
-                "data": _snapshot(profile, book, today),
+                "data": _snapshot(profile, book, today, wb),
             }
         )
 
@@ -101,7 +160,7 @@ async def chat(body: ChatIn) -> JSONResponse:
                             "Add it to data/foods.json or use: /log name|kcal "
                             "(example: /log pizza|450)."
                         ),
-                        "data": _snapshot(profile, book, today),
+                        "data": _snapshot(profile, book, today, wb),
                     }
                 )
             desc = payload.strip()
@@ -120,7 +179,7 @@ async def chat(body: ChatIn) -> JSONResponse:
                 "kind": "log",
                 "reply": reply,
                 "data": {
-                    **_snapshot(profile, book, today),
+                    **_snapshot(profile, book, today, wb),
                     "last_logged_kcal": kcal,
                 },
             }
@@ -136,7 +195,7 @@ async def chat(body: ChatIn) -> JSONResponse:
                 name = payload.strip()
                 fk = None
         nctx = nutrition.build_context_for_llm(
-            profile, book, today, name, fk
+            profile, book, today, name, fk, wb
         )
         if fk is None:
             reply = (
@@ -148,7 +207,7 @@ async def chat(body: ChatIn) -> JSONResponse:
                 {
                     "kind": "ask",
                     "reply": reply,
-                    "data": _snapshot(profile, book, today),
+                    "data": _snapshot(profile, book, today, wb),
                 }
             )
         q = f"Should I eat this now? ({name}, {fk} kcal)"
@@ -158,19 +217,21 @@ async def chat(body: ChatIn) -> JSONResponse:
                 "kind": "ask",
                 "reply": reply,
                 "data": {
-                    **_snapshot(profile, book, today),
+                    **_snapshot(profile, book, today, wb),
                     "food_kcal": fk,
                     "food_name": name,
                 },
             }
         )
 
-    nctx = nutrition.build_context_for_llm(profile, book, today, None, None)
+    nctx = nutrition.build_context_for_llm(
+        profile, book, today, None, None, wb
+    )
     reply = await llm.general_chat(nctx, payload)
     return JSONResponse(
         {
             "kind": "chat",
             "reply": reply,
-            "data": _snapshot(profile, book, today),
+            "data": _snapshot(profile, book, today, wb),
         }
     )
